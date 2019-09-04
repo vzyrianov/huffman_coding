@@ -195,9 +195,9 @@ struct bit_encoding_writer
          else
          {
             const int amount_empty = 64 - buffer.length;
-            const uint64_t copy = bits.value >> bits.length - amount_empty;
+            const uint64_t copy = bits.value >> (bits.length - amount_empty);
             write({amount_empty, copy});
-            write({ bits.length - amount_empty, bits.value - (copy << bits.length - amount_empty) });
+            write({ bits.length - amount_empty, bits.value - (copy << (bits.length - amount_empty)) });
          }
       }
    }
