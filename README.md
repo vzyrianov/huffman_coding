@@ -1,6 +1,6 @@
 # huffman_coding
 
-A file compressor / decompressor that implements the huffman algorithm. Works on any file type. On text it generally decreases file size by 50%. Other file type's compression ratios depend on how random the data is in it.  
+A file compressor / decompressor that implements the huffman algorithm. Works on any file type. On text it generally decreases file size by 50%. Other file type's compression ratios depend on how random the data in the file is.  
 
 ## Handing binary
 
