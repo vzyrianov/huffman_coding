@@ -96,12 +96,28 @@ struct huffman_node
 };
 
 const char BACK = '\a';
+const char ESCAPE = '\\';
 
 void write_huffman(std::ofstream& output, huffman_node* root)
 {
    if (root->isLeaf) {
-      output.write(&root->value, 1);
-      output.write(&BACK, 1);
+      if(root->value == BACK)
+      {
+         output.write(&ESCAPE, 1);
+         output.write(&root->value, 1);
+         output.write(&BACK, 1);
+      }
+      else if(root->value == ESCAPE)
+      {
+         output.write(&ESCAPE, 1);
+         output.write(&ESCAPE, 1);
+         output.write(&BACK, 1);
+      }
+      else
+      {
+         output.write(&root->value, 1);
+         output.write(&BACK, 1);
+      }
    }
    else
    {
@@ -119,6 +135,12 @@ huffman_node* read_huffman(std::ifstream& input)
 
    input.read(&current_token, 1);
    next_token = input.peek();
+
+   if(current_token == ESCAPE)
+   {
+      input.read(&current_token, 1);
+      next_token = input.peek();
+   }
 
    bool isLeaf = next_token == BACK;
 
@@ -213,6 +235,7 @@ huffman_node* build_huffman(std::ifstream& file)
       frequencies[currentChar] += 1;
    }
    frequencies['\0'] += 1; //Add file end encoding
+   frequencies[ESCAPE] += 1; //Add escape character encoding
 
    //Create queue
    struct comparator
@@ -260,6 +283,11 @@ void encode(std::ifstream& to_encode, std::map<char, bit_encoding> encoding, std
    char c;
    while(to_encode.get(c))
    {
+      if(c == '\0' || c == ESCAPE)
+      {
+         writer.write(encoding[ESCAPE]);
+      }
+
       writer.write(encoding[c]);
    }
 
@@ -278,6 +306,7 @@ void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::of
    input.read(reinterpret_cast<char*>(&read_in.value), sizeof(read_in.value));
    read_in.length = 64;
 
+   bool currently_escaped = false;
 
    char c;
    while (true)
@@ -294,10 +323,20 @@ void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::of
       }
       c = decoding[matching];
 
-      if (c == '\0')
-         break;
+      if((c == ESCAPE) && (!currently_escaped))
+      {
+         currently_escaped = true;
+      }
+      else
+      {
+         if (c == '\0')
+            break;
 
-      stream << c;
+         currently_escaped = false;
+
+         stream << c;
+      }
+
       matching = { 0, 0 };
    }
 }
