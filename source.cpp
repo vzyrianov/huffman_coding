@@ -101,13 +101,13 @@ const char ESCAPE = '\\';
 void write_huffman(std::ofstream& output, huffman_node* root)
 {
    if (root->isLeaf) {
-      if(root->value == BACK)
+      if (root->value == BACK)
       {
          output.write(&ESCAPE, 1);
          output.write(&BACK, 1);
          output.write(&BACK, 1);
       }
-      else if(root->value == ESCAPE)
+      else if (root->value == ESCAPE)
       {
          output.write(&ESCAPE, 1);
          output.write(&ESCAPE, 1);
@@ -136,7 +136,7 @@ huffman_node* read_huffman(std::ifstream& input)
    input.read(&current_token, 1);
    next_token = input.peek();
 
-   if(current_token == ESCAPE)
+   if (current_token == ESCAPE)
    {
       input.read(&current_token, 1);
       next_token = input.peek();
@@ -144,7 +144,7 @@ huffman_node* read_huffman(std::ifstream& input)
 
    bool isLeaf = next_token == BACK;
 
-   if(isLeaf)
+   if (isLeaf)
    {
       huffman_node* result = new huffman_node{ current_token, isLeaf, 0, nullptr, nullptr };
 
@@ -163,7 +163,7 @@ huffman_node* read_huffman(std::ifstream& input)
       return result;
    }
 }
- 
+
 struct bit_encoding_writer
 {
    std::ofstream* stream;
@@ -172,12 +172,12 @@ struct bit_encoding_writer
    bit_encoding_writer(std::ofstream* s)
    {
       stream = s;
-      buffer = {0, 0};
+      buffer = { 0, 0 };
    };
 
    void write(bit_encoding bits)
    {
-      if(bits.length <= (64 - buffer.length))
+      if (bits.length <= (64 - buffer.length))
       {
          buffer.value = buffer.value << bits.length;
          buffer.value += bits.value;
@@ -185,9 +185,10 @@ struct bit_encoding_writer
 
          if (buffer.length == 64)
             write_buffer();
-      } else
+      }
+      else
       {
-         if(bits.length == 64)
+         if (bits.length == 64)
          {
             write_buffer();
             write(bits);
@@ -196,7 +197,7 @@ struct bit_encoding_writer
          {
             const int amount_empty = 64 - buffer.length;
             const uint64_t copy = bits.value >> (bits.length - amount_empty);
-            write({amount_empty, copy});
+            write({ amount_empty, copy });
             write({ bits.length - amount_empty, bits.value - (copy << (bits.length - amount_empty)) });
          }
       }
@@ -250,7 +251,7 @@ huffman_node* build_huffman(std::ifstream& file)
 
    for (auto& kv : frequencies)
    {
-      queue.push(new huffman_node{kv.first, true, kv.second, nullptr, nullptr});
+      queue.push(new huffman_node{ kv.first, true, kv.second, nullptr, nullptr });
    }
 
    //Build huffman tree
@@ -262,7 +263,7 @@ huffman_node* build_huffman(std::ifstream& file)
       huffman_node* second = queue.top();
       queue.pop();
 
-      huffman_node* branch = new huffman_node {
+      huffman_node* branch = new huffman_node{
          '\0',
          false,
          first->count + second->count,
@@ -281,9 +282,9 @@ void encode(std::ifstream& to_encode, std::map<char, bit_encoding> encoding, std
    bit_encoding_writer writer(stream);
 
    char c;
-   while(to_encode.get(c))
+   while (to_encode.get(c))
    {
-      if(c == '\0' || c == ESCAPE)
+      if (c == '\0' || c == ESCAPE)
       {
          writer.write(encoding[ESCAPE]);
       }
@@ -299,7 +300,7 @@ void encode(std::ifstream& to_encode, std::map<char, bit_encoding> encoding, std
 
 void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::ofstream& stream)
 {
-   bit_encoding read_in = {0, 0};
+   bit_encoding read_in = { 0, 0 };
    bit_encoding matching = { 0, 0 };
    std::string result;
 
@@ -323,7 +324,7 @@ void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::of
       }
       c = decoding[matching];
 
-      if((c == ESCAPE) && (!currently_escaped))
+      if ((c == ESCAPE) && (!currently_escaped))
       {
          currently_escaped = true;
       }
@@ -343,15 +344,15 @@ void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::of
 
 int main(int argc, char* argv[])
 {
-   if(argc != 4)
+   if (argc != 4)
    {
       std::cout << "Incorrect number of parameters!";
       return 1;
    }
-   if(std::string(argv[1]) == "e")
+   if (std::string(argv[1]) == "e")
    {
       //Build huffman tree
-      std::ifstream file(argv[2]);
+      std::ifstream file(argv[2], std::ios_base::binary);
       huffman_node* tree = build_huffman(file);
       file.close();
 
