@@ -104,7 +104,7 @@ void write_huffman(std::ofstream& output, huffman_node* root)
       if(root->value == BACK)
       {
          output.write(&ESCAPE, 1);
-         output.write(&root->value, 1);
+         output.write(&BACK, 1);
          output.write(&BACK, 1);
       }
       else if(root->value == ESCAPE)
@@ -329,7 +329,7 @@ void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::of
       }
       else
       {
-         if (c == '\0')
+         if (c == '\0' && !currently_escaped)
             break;
 
          currently_escaped = false;
@@ -364,7 +364,7 @@ int main(int argc, char* argv[])
       tree->build_encoding(encoding, bit_encoding());
 
       //read through file again and encode it
-      std::ifstream file2(argv[2]);
+      std::ifstream file2(argv[2], std::ios_base::binary);
       encode(file2, encoding, &output);
       file2.close();
 
@@ -384,7 +384,7 @@ int main(int argc, char* argv[])
       tree_copy->build_decoding(decoding, bit_encoding());
 
 
-      std::ofstream stream(argv[3]);
+      std::ofstream stream(argv[3], std::ios_base::binary);
       decode(input, decoding, stream);
    }
 
