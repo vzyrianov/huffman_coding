@@ -1,6 +1,6 @@
 # huffman_coding
 
-A text file compressor / decompressor that implements the huffman algorithm. 
+A file compressor / decompressor that implements the huffman algorithm. Works on any file type. On text it generally decreases file size by 50%. Other file type's compression ratios depend on how random the data is in it.  
 
 ## Handing binary
 
@@ -12,10 +12,7 @@ Binary strings are written to files in 64 bit chunks. A buffer is used to insure
 
 The compressed version of the text is stored in a single file. 
 
-The first part of the file is the huffman tree encoded in a flat format. The `\a` character specifies moving back up a node.
+The first part of the file is the huffman tree encoded in a flat format. The `\a` character specifies moving back up a node. If a node's value is the `\a` character, it is escaped by putting a `\` in front of it. 
 
-The rest of the file is the text compressed in binary. The end of file is marked by a null terminator character `\0` so that binary digits beyond it are not read.
+The rest of the file is the text compressed in binary. The end of file is marked by a null terminator character `\0` so that binary digits beyond it are not read. If the compressed text contains a `\0` character, it is escaped with a `\` character.  
 
-## Limitations
-
-Because the special characters `\a` and `\0` are used, only files which do not contain them can be compressed. Namely, text files. To support compression of other files, the code would have to be modified to escape the special characters in a similar way to how C++ does it. 
