@@ -1,11 +1,10 @@
-#include <map>
+#include <unordered_map>
 #include <iostream>
 #include <fstream>
 #include <queue>
 #include <vector>
 #include <functional>
 #include <string>
-#include <limits>
 #include <bitset>
 
 struct bit_encoding
@@ -16,6 +15,11 @@ struct bit_encoding
    bool operator<(const bit_encoding& lhs) const
    {
       return std::tie(length, value) < std::tie(lhs.length, lhs.value);
+   }
+
+   bool operator==(const bit_encoding& lhs) const
+   {
+      return length == lhs.length && value == lhs.value;
    }
 
    bit_encoding append_1() const
@@ -39,6 +43,15 @@ struct bit_encoding
 
       other.value = other.value & ~(x << (other.length - 1));
       --other.length;
+   }
+};
+
+class bit_encoding_hash {
+public:
+
+   size_t operator()(const bit_encoding& p) const
+   {
+      return std::hash<int>()(p.length) ^ std::hash<uint64_t>()(p.value);
    }
 };
 
@@ -66,7 +79,7 @@ struct huffman_node
       }
    }
 
-   void build_encoding(std::map<char, bit_encoding>& encoding_to_build, bit_encoding current) const
+   void build_encoding(std::unordered_map<char, bit_encoding>& encoding_to_build, bit_encoding current) const
    {
       if (isLeaf)
       {
@@ -80,7 +93,7 @@ struct huffman_node
       }
    }
 
-   void build_decoding(std::map<bit_encoding, char>& encoding_to_build, bit_encoding current) const
+   void build_decoding(std::unordered_map<bit_encoding, char, bit_encoding_hash>& encoding_to_build, bit_encoding current) const
    {
       if (isLeaf)
       {
@@ -228,7 +241,7 @@ private:
 huffman_node* build_huffman(std::ifstream& file)
 {
    //Calculate Frequencies
-   std::map<char, int> frequencies;
+   std::unordered_map<char, int> frequencies;
    char currentChar;
 
    while (file.get(currentChar))
@@ -277,7 +290,7 @@ huffman_node* build_huffman(std::ifstream& file)
    return queue.top();
 }
 
-void encode(std::ifstream& to_encode, std::map<char, bit_encoding> encoding, std::ofstream* stream)
+void encode(std::ifstream& to_encode, std::unordered_map<char, bit_encoding> encoding, std::ofstream* stream)
 {
    bit_encoding_writer writer(stream);
 
@@ -298,7 +311,7 @@ void encode(std::ifstream& to_encode, std::map<char, bit_encoding> encoding, std
 
 }
 
-void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::ofstream& stream)
+void decode(std::ifstream& input, std::unordered_map<bit_encoding, char, bit_encoding_hash> decoding, std::ofstream& stream)
 {
    bit_encoding read_in = { 0, 0 };
    bit_encoding matching = { 0, 0 };
@@ -361,7 +374,7 @@ int main(int argc, char* argv[])
       write_huffman(output, tree);
 
       //Create encodings
-      std::map<char, bit_encoding> encoding;
+      std::unordered_map<char, bit_encoding> encoding;
       tree->build_encoding(encoding, bit_encoding());
 
       //read through file again and encode it
@@ -381,7 +394,7 @@ int main(int argc, char* argv[])
 
       //Build decoding
 
-      std::map<bit_encoding, char> decoding;
+      std::unordered_map<bit_encoding, char, bit_encoding_hash> decoding;
       tree_copy->build_decoding(decoding, bit_encoding());
 
 
