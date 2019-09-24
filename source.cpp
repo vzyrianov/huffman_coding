@@ -10,6 +10,8 @@
 #include <sstream>
 #include <cassert>
 #include <unordered_set>
+#include <unordered_map>
+
 /*
 struct bit_encoding
 {
@@ -469,7 +471,7 @@ void decode(std::istream& input, std::ostream& output)
    std::string match;
    bool matched = false;
    uint8_t current_index = 1;
-   std::unordered_map <char, std::string> translationTable;
+   std::unordered_map<char, std::string> translationTable;
    std::unordered_set <std::string> map_values;
    int last_appended_length = 0;
 
