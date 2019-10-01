@@ -6,7 +6,12 @@
 #include <functional>
 #include <string>
 #include <bitset>
+#include <sstream>
+#include <cassert>
+#include <unordered_set>
+#include <unordered_map>
 
+/*
 struct bit_encoding
 {
    int length;
@@ -403,4 +408,300 @@ int main(int argc, char* argv[])
    }
 
    return 0;
+}
+*/
+
+const char marker = 0;
+void encode(std::istream& input, std::ostream& output)
+{
+   char c;
+   std::string match;
+   bool matched = false;
+   uint8_t current_index = 1;
+   std::unordered_map <std::string, char> translationTable;
+
+
+   while (input.get(c))
+   {
+      match.push_back(c);
+      if (translationTable.find(match) == translationTable.end())
+      {
+         if (current_index != 256 && match.length() > 2)
+         {
+            translationTable[match] = current_index;
+            current_index++;
+         }
+
+         if (match.length() > 2)
+         {
+            if (matched) {
+               matched = false;
+               char last_character = match.back();
+               match.pop_back();
+
+               output.put(marker);
+               output.put(translationTable[match]);
+
+               match = last_character;
+            }
+
+            else
+            {
+               for (auto& x : match)
+               {
+                  if (x == marker)
+                     output.put(x);
+
+                  output.put(x);
+               }
+
+               match.clear();
+            }
+         }
+      }
+      else
+      {
+         matched = true;
+      }
+   }
+
+   if(translationTable.find(match) != translationTable.end())
+   {
+      output << marker;
+      output << translationTable[match];
+   }
+   else {
+      output << match;
+   }
+
+   std::cout << "done";
+}
+
+
+void decode(std::istream& input, std::ostream& output)
+{
+   char c;
+   std::string match;
+   bool matched = false;
+   uint8_t current_index = 1;
+   std::unordered_map<char, std::string> translationTable;
+   std::unordered_set <std::string> map_values;
+   int last_appended_length = 0;
+
+   while (input.get(c))
+   {
+      if (c == marker)
+      {
+         input.get(c);
+
+         if (c != marker)
+         {
+            output << translationTable[c];
+
+            std::string full = translationTable[c];
+
+            for(auto& c2 : full)
+            {
+               match.push_back(c2);
+               if (map_values.find(match) == map_values.end())
+               {
+                  if (current_index != 256 && match.length() > 2)
+                  {
+                     translationTable[current_index] = match;
+                     map_values.insert(match);
+                     current_index++;
+
+                     //output << match;
+                     match.clear();
+                  }
+               }
+            }
+         }
+         else
+         {
+            output << c;
+            match.push_back(c);
+         }
+      }
+      else
+      {
+         match.push_back(c);
+      }
+
+      if (map_values.find(match) == map_values.end())
+      {
+         if (current_index != 256 && match.length() > 2)
+         {
+            translationTable[current_index] = match;
+            map_values.insert(match);
+            current_index++;
+
+            output << match;
+            match.clear();
+         }
+      }
+      else
+      {
+         matched = true;
+      }
+   }
+
+   output << match;
+}
+
+void test()
+{/*
+   {
+      std::string text = "abbabb ";
+
+      std::istringstream input(text);
+      std::string compressed;
+
+
+      {
+         std::ostringstream compressed_output;
+         encode(input, compressed_output);
+         compressed = compressed_output.str();
+      }
+
+      {
+         std::istringstream compressed_input(compressed);
+         std::ostringstream decompressed;
+         decode(compressed_input, decompressed);
+         std::string result = decompressed.str();
+
+//         assert(result == text);
+      }
+   }*/
+
+   /*
+   {
+      std::string text = "baaaaaaaa";
+
+      std::istringstream input(text);
+      std::string compressed;
+
+
+      {
+         std::ostringstream compressed_output;
+         encode(input, compressed_output);
+         compressed = compressed_output.str();
+      }
+
+      {
+          std::istringstream compressed_input(compressed);
+          std::ostringstream decompressed;
+          decode(compressed_input, decompressed);
+          std::string result = decompressed.str();
+
+          assert(result == text);
+       }
+   }
+   
+   {
+      std::string text = "baaraaaaaaaaaaa";
+
+      std::istringstream input(text);
+      std::string compressed;
+
+
+      {
+         std::ostringstream compressed_output;
+         encode(input, compressed_output);
+         compressed = compressed_output.str();
+      }
+
+      {
+         std::istringstream compressed_input(compressed);
+         std::ostringstream decompressed;
+         decode(compressed_input, decompressed);
+         std::string result = decompressed.str();
+
+         assert(result == text);
+      }
+   }*/
+   
+   {
+      std::string text = "kkkkkkkkaaaaakkkkkkkkk";
+      std::istringstream input(text);
+      std::string compressed;
+
+      {
+         std::ostringstream compressed_output;
+         encode(input, compressed_output);
+         compressed = compressed_output.str();
+      }
+
+      {
+         std::istringstream compressed_input(compressed);
+         std::ostringstream decompressed;
+         decode(compressed_input, decompressed);
+         std::string result = decompressed.str();
+
+         assert(result == text);
+      }
+   }
+
+   {
+      std::string text = "JDKKKKKKKKKJJJJJJJJJJJJJKKKKKKKKKKKKKKk";
+
+      std::istringstream input(text);
+      std::string compressed;
+
+
+      {
+         std::ostringstream compressed_output;
+         encode(input, compressed_output);
+         compressed = compressed_output.str();
+      }
+
+      {
+          std::istringstream compressed_input(compressed);
+          std::ostringstream decompressed;
+          decode(compressed_input, decompressed);
+          std::string result = decompressed.str();
+
+          assert(result == text);
+       }
+   }
+}
+
+int main(int argc, char* argv[])
+{/*
+   if (argc != 4)
+   {
+      std::cout << "Incorrect number of parameters!";
+      return 1;
+   }
+   if (std::string(argv[1]) == "e")
+   {
+      std::ofstream output(argv[3], std::ios_base::binary);
+      std::ifstream file(argv[2], std::ios_base::binary);
+
+      encode(file, output);
+      file.close();
+
+      output.flush();
+      output.close();
+   }*/ /*
+   {
+      std::ifstream input("input.txt", std::ios_base::binary);
+      std::ofstream output("output.txt", std::ios_base::binary);
+
+      encode(input, output);
+      input.close();
+      output.flush();
+      output.close();
+   }
+   {
+      std::ifstream input("output.txt", std::ios_base::binary);
+      std::ofstream output("done.txt", std::ios_base::binary);
+
+      decode(input, output);
+      input.close();
+      output.flush();
+      output.close();
+   }*/
+
+   test();
 }
