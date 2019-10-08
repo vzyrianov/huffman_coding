@@ -398,6 +398,40 @@ int main(int argc, char* argv[])
 }
 */
 
+struct translation_map
+{
+   std::unordered_map<std::string, char> stringToNum;
+   std::unordered_map<char, std::string> numToString;
+
+   std::string match;
+   char current_index = 1;
+
+   void add_char(char c)
+   {
+      match.push_back(c);
+
+      if(stringToNum.find(match) == stringToNum.end())
+      {
+         if (current_index != 256 && match.length() > 2)
+         {
+            stringToNum[match] = current_index;
+            numToString[current_index] = match;
+            
+            current_index++;
+            match.clear();
+         }
+      }
+   }
+
+   void add_string(const std::string& string)
+   {
+      for(const char& c : string)
+      {
+         add_char(c);
+      }
+   }
+};
+
 const char marker = 0;
 void encode(std::istream& input, std::ostream& output)
 {
@@ -405,20 +439,15 @@ void encode(std::istream& input, std::ostream& output)
    std::string match;
    bool matched = false;
    uint8_t current_index = 1;
-   std::unordered_map <std::string, char> translationTable;
+   translation_map translationMap;
 
 
    while (input.get(c))
    {
       match.push_back(c);
-      if (translationTable.find(match) == translationTable.end())
-      {
-         if (current_index != 256 && match.length() > 2)
-         {
-            translationTable[match] = current_index;
-            current_index++;
-         }
 
+      if (translationMap.stringToNum.find(match) == translationMap.stringToNum.end())
+      {
          if (match.length() > 2)
          {
             if (matched) {
@@ -427,11 +456,10 @@ void encode(std::istream& input, std::ostream& output)
                match.pop_back();
 
                output.put(marker);
-               output.put(translationTable[match]);
+               output.put(translationMap.stringToNum[match]);
 
                match = last_character;
             }
-
             else
             {
                for (auto& x : match)
@@ -448,14 +476,18 @@ void encode(std::istream& input, std::ostream& output)
       }
       else
       {
-         matched = true;
+         if(match.length() > 2)
+            matched = true;
       }
+
+
+      translationMap.add_char(c);
    }
 
-   if(translationTable.find(match) != translationTable.end())
+   if(translationMap.stringToNum.find(match) != translationMap.stringToNum.end())
    {
       output << marker;
-      output << translationTable[match];
+      output << translationMap.stringToNum[match];
    }
    else {
       output << match;
@@ -471,8 +503,7 @@ void decode(std::istream& input, std::ostream& output)
    std::string match;
    bool matched = false;
    uint8_t current_index = 1;
-   std::unordered_map<char, std::string> translationTable;
-   std::unordered_set <std::string> map_values;
+   translation_map translationMap;
    int last_appended_length = 0;
 
    while (input.get(c))
@@ -483,53 +514,20 @@ void decode(std::istream& input, std::ostream& output)
 
          if (c != marker)
          {
-            output << translationTable[c];
-
-            std::string full = translationTable[c];
-
-            for(auto& c2 : full)
-            {
-               match.push_back(c2);
-               if (map_values.find(match) == map_values.end())
-               {
-                  if (current_index != 256 && match.length() > 2)
-                  {
-                     translationTable[current_index] = match;
-                     map_values.insert(match);
-                     current_index++;
-
-                     //output << match;
-                     match.clear();
-                  }
-               }
-            }
+            output << translationMap.numToString[c];
+            translationMap.add_string(translationMap.numToString[c]);
          }
          else
          {
             output << c;
             match.push_back(c);
+            translationMap.add_char(c);
          }
       }
       else
       {
+         translationMap.add_char(c);
          match.push_back(c);
-      }
-
-      if (map_values.find(match) == map_values.end())
-      {
-         if (current_index != 256 && match.length() > 2)
-         {
-            translationTable[current_index] = match;
-            map_values.insert(match);
-            current_index++;
-
-            output << match;
-            match.clear();
-         }
-      }
-      else
-      {
-         matched = true;
       }
    }
 
@@ -537,7 +535,7 @@ void decode(std::istream& input, std::ostream& output)
 }
 
 void test()
-{/*
+{
    {
       std::string text = "abbabb ";
 
@@ -557,11 +555,11 @@ void test()
          decode(compressed_input, decompressed);
          std::string result = decompressed.str();
 
-//         assert(result == text);
+         assert(result == text);
       }
-   }*/
+   }
 
-   /*
+   
    {
       std::string text = "baaaaaaaa";
 
@@ -584,7 +582,7 @@ void test()
           assert(result == text);
        }
    }
-   
+   /*
    {
       std::string text = "baaraaaaaaaaaaa";
 
@@ -607,7 +605,7 @@ void test()
          assert(result == text);
       }
    }*/
-   
+   /*
    {
       std::string text = "kkkkkkkkaaaaakkkkkkkkk";
       std::istringstream input(text);
@@ -650,7 +648,7 @@ void test()
 
           assert(result == text);
        }
-   }
+   }*/
 }
 
 int main(int argc, char* argv[])
