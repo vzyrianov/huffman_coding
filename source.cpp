@@ -359,12 +359,11 @@ namespace lzwz_compression {
 
       void add_char(char c)
       {
-         std::cout << c;
          match.push_back(c);
 
-         if (stringToNum.find(match) == stringToNum.end())
+         if (current_index != -2 && match.length() > 3)
          {
-            if (current_index != 126 && match.length() > 2)
+            if (stringToNum.find(match) == stringToNum.end())
             {
                stringToNum[match] = current_index;
                numToString[current_index] = match;
@@ -377,7 +376,7 @@ namespace lzwz_compression {
 
       void add_string(const std::string& string)
       {
-         for (const char& c : string)
+         for (char c : string)
          {
             add_char(c);
          }
@@ -393,35 +392,34 @@ namespace lzwz_compression {
       uint8_t current_index = 1;
       translation_map translationMap;
 
-
       while (input.get(c))
       {
          match.push_back(c);
 
          if (translationMap.stringToNum.find(match) == translationMap.stringToNum.end())
          {
-            if (match.length() > 2)
+            if (match.length() > 3)
             {
                if (matched) {
                   matched = false;
                   char last_character = match.back();
                   match.pop_back();
 
-                  output.put(marker);
-                  output.put(translationMap.stringToNum[match]);
+                  output << marker;
+                  output << translationMap.stringToNum[match];
                   translationMap.add_string(match);
 
                   match = last_character;
                }
                else
                {
-                  for (auto& x : match)
+                  for (char x : match)
                   {
                      if (x == marker)
-                        output.put(x);
+                        output << x;
 
                      translationMap.add_char(x);
-                     output.put(x);
+                     output << x;
                   }
 
                   match.clear();
@@ -430,7 +428,7 @@ namespace lzwz_compression {
          }
          else
          {
-            if (match.length() > 2)
+            if (match.length() > 3)
                matched = true;
          }
 
@@ -452,7 +450,7 @@ namespace lzwz_compression {
 
    void decode(std::istream& input, std::ostream& output)
    {
-      std::cout << std::endl;
+      //std::cout << std::endl;
       char c;
       uint8_t current_index = 1;
       translation_map translationMap;
