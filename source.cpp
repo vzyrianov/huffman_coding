@@ -12,647 +12,569 @@
 #include <unordered_set>
 #include <unordered_map>
 
-/*
-struct bit_encoding
-{
-   int length;
-   uint64_t value;
-
-   bool operator<(const bit_encoding& lhs) const
+namespace huffman_compression {
+   struct bit_encoding
    {
-      return std::tie(length, value) < std::tie(lhs.length, lhs.value);
-   }
+      int length;
+      uint64_t value;
 
-   bit_encoding append_1() const
+      bool operator<(const bit_encoding& lhs) const
+      {
+         return std::tie(length, value) < std::tie(lhs.length, lhs.value);
+      }
+
+      bit_encoding append_1() const
+      {
+         return { length + 1, (value << 1) + 1 };
+      }
+
+      bit_encoding append_0() const
+      {
+         return { length + 1, value << 1 };
+      }
+
+      void take_from(bit_encoding& other)
+      {
+         length += 1;
+         value = value << 1;
+
+         uint64_t x = 1;
+
+         value += ((other.value & (x << (other.length - 1)))) != 0;
+
+         other.value = other.value & ~(x << (other.length - 1));
+         --other.length;
+      }
+   };
+
+   struct huffman_node
    {
-      return { length + 1, (value << 1) + 1 };
-   }
+      char value;
+      bool isLeaf;
 
-   bit_encoding append_0() const
+      int count;
+
+      huffman_node* left;
+      huffman_node* right;
+
+      void print(const std::string& prefix) const
+      {
+         if (isLeaf)
+         {
+            std::cout << value << " " << prefix << std::endl;
+         }
+         else
+         {
+            left->print(prefix + "0");
+
+            right->print(prefix + "1");
+         }
+      }
+
+      void build_encoding(std::map<char, bit_encoding>& encoding_to_build, bit_encoding current) const
+      {
+         if (isLeaf)
+         {
+            encoding_to_build[value] = current;
+         }
+         else
+         {
+            left->build_encoding(encoding_to_build, current.append_0());
+
+            right->build_encoding(encoding_to_build, current.append_1());
+         }
+      }
+
+      void build_decoding(std::map<bit_encoding, char>& encoding_to_build, bit_encoding current) const
+      {
+         if (isLeaf)
+         {
+            encoding_to_build[current] = value;
+         }
+         else
+         {
+            left->build_decoding(encoding_to_build, current.append_0());
+
+            right->build_decoding(encoding_to_build, current.append_1());
+         }
+      }
+   };
+
+   const char BACK = '\a';
+   const char ESCAPE = '\\';
+
+   void write_huffman(std::ofstream& output, huffman_node* root)
    {
-      return { length + 1, value << 1 };
-   }
-
-   void take_from(bit_encoding& other)
-   {
-      length += 1;
-      value = value << 1;
-
-      uint64_t x = 1;
-
-      value += ((other.value & (x << (other.length - 1)))) != 0;
-
-      other.value = other.value & ~(x << (other.length - 1));
-      --other.length;
-   }
-};
-
-struct huffman_node
-{
-   char value;
-   bool isLeaf;
-
-   int count;
-
-   huffman_node* left;
-   huffman_node* right;
-
-   void print(const std::string& prefix) const
-   {
-      if (isLeaf)
-      {
-         std::cout << value << " " << prefix << std::endl;
-      }
-      else
-      {
-         left->print(prefix + "0");
-
-         right->print(prefix + "1");
-      }
-   }
-
-   void build_encoding(std::map<char, bit_encoding>& encoding_to_build, bit_encoding current) const
-   {
-      if (isLeaf)
-      {
-         encoding_to_build[value] = current;
-      }
-      else
-      {
-         left->build_encoding(encoding_to_build, current.append_0());
-
-         right->build_encoding(encoding_to_build, current.append_1());
-      }
-   }
-
-   void build_decoding(std::map<bit_encoding, char>& encoding_to_build, bit_encoding current) const
-   {
-      if (isLeaf)
-      {
-         encoding_to_build[current] = value;
-      }
-      else
-      {
-         left->build_decoding(encoding_to_build, current.append_0());
-
-         right->build_decoding(encoding_to_build, current.append_1());
-      }
-   }
-};
-
-const char BACK = '\a';
-const char ESCAPE = '\\';
-
-void write_huffman(std::ofstream& output, huffman_node* root)
-{
-   if (root->isLeaf) {
-      if (root->value == BACK)
-      {
-         output.write(&ESCAPE, 1);
-         output.write(&BACK, 1);
-         output.write(&BACK, 1);
-      }
-      else if (root->value == ESCAPE)
-      {
-         output.write(&ESCAPE, 1);
-         output.write(&ESCAPE, 1);
-         output.write(&BACK, 1);
+      if (root->isLeaf) {
+         if (root->value == BACK)
+         {
+            output.write(&ESCAPE, 1);
+            output.write(&BACK, 1);
+            output.write(&BACK, 1);
+         }
+         else if (root->value == ESCAPE)
+         {
+            output.write(&ESCAPE, 1);
+            output.write(&ESCAPE, 1);
+            output.write(&BACK, 1);
+         }
+         else
+         {
+            output.write(&root->value, 1);
+            output.write(&BACK, 1);
+         }
       }
       else
       {
          output.write(&root->value, 1);
+         write_huffman(output, root->left);
+         write_huffman(output, root->right);
          output.write(&BACK, 1);
       }
    }
-   else
+
+   huffman_node* read_huffman(std::ifstream& input)
    {
-      output.write(&root->value, 1);
-      write_huffman(output, root->left);
-      write_huffman(output, root->right);
-      output.write(&BACK, 1);
-   }
-}
+      char current_token;
+      char next_token;
 
-huffman_node* read_huffman(std::ifstream& input)
-{
-   char current_token;
-   char next_token;
-
-   input.read(&current_token, 1);
-   next_token = input.peek();
-
-   if (current_token == ESCAPE)
-   {
       input.read(&current_token, 1);
       next_token = input.peek();
-   }
 
-   bool isLeaf = next_token == BACK;
-
-   if (isLeaf)
-   {
-      huffman_node* result = new huffman_node{ current_token, isLeaf, 0, nullptr, nullptr };
-
-      input.read(&current_token, 1);
-
-      return result;
-   }
-   else
-   {
-      huffman_node* left = read_huffman(input);
-      huffman_node* right = read_huffman(input);
-      huffman_node* result = new huffman_node{ current_token, isLeaf, 0, left, right };
-
-      input.read(&current_token, 1);
-
-      return result;
-   }
-}
-
-struct bit_encoding_writer
-{
-   std::ofstream* stream;
-   bit_encoding buffer;
-
-   bit_encoding_writer(std::ofstream* s)
-   {
-      stream = s;
-      buffer = { 0, 0 };
-   };
-
-   void write(bit_encoding bits)
-   {
-      if (bits.length <= (64 - buffer.length))
+      if (current_token == ESCAPE)
       {
-         buffer.value = buffer.value << bits.length;
-         buffer.value += bits.value;
-         buffer.length += bits.length;
+         input.read(&current_token, 1);
+         next_token = input.peek();
+      }
 
-         if (buffer.length == 64)
-            write_buffer();
+      bool isLeaf = next_token == BACK;
+
+      if (isLeaf)
+      {
+         huffman_node* result = new huffman_node{ current_token, isLeaf, 0, nullptr, nullptr };
+
+         input.read(&current_token, 1);
+
+         return result;
       }
       else
       {
-         if (bits.length == 64)
+         huffman_node* left = read_huffman(input);
+         huffman_node* right = read_huffman(input);
+         huffman_node* result = new huffman_node{ current_token, isLeaf, 0, left, right };
+
+         input.read(&current_token, 1);
+
+         return result;
+      }
+   }
+
+   struct bit_encoding_writer
+   {
+      std::ofstream* stream;
+      bit_encoding buffer;
+
+      bit_encoding_writer(std::ofstream* s)
+      {
+         stream = s;
+         buffer = { 0, 0 };
+      };
+
+      void write(bit_encoding bits)
+      {
+         if (bits.length <= (64 - buffer.length))
          {
-            write_buffer();
-            write(bits);
+            buffer.value = buffer.value << bits.length;
+            buffer.value += bits.value;
+            buffer.length += bits.length;
+
+            if (buffer.length == 64)
+               write_buffer();
          }
          else
          {
-            const int amount_empty = 64 - buffer.length;
-            const uint64_t copy = bits.value >> (bits.length - amount_empty);
-            write({ amount_empty, copy });
-            write({ bits.length - amount_empty, bits.value - (copy << (bits.length - amount_empty)) });
+            if (bits.length == 64)
+            {
+               write_buffer();
+               write(bits);
+            }
+            else
+            {
+               const int amount_empty = 64 - buffer.length;
+               const uint64_t copy = bits.value >> (bits.length - amount_empty);
+               write({ amount_empty, copy });
+               write({ bits.length - amount_empty, bits.value - (copy << (bits.length - amount_empty)) });
+            }
          }
       }
-   }
 
-   void close()
-   {
-      while (buffer.length != 64)
+      void close()
       {
-         buffer = buffer.append_0();
+         while (buffer.length != 64)
+         {
+            buffer = buffer.append_0();
+         }
+
+         write_buffer();
+
+         stream->flush();
+         stream->close();
       }
 
-      write_buffer();
-
-      stream->flush();
-      stream->close();
-   }
-
-private:
-   void write_buffer()
-   {
-      stream->write(reinterpret_cast<char *>(&buffer.value), sizeof(buffer.value));
-      buffer.length = 0;
-   }
-};
-
-
-huffman_node* build_huffman(std::ifstream& file)
-{
-   //Calculate Frequencies
-   std::map<char, int> frequencies;
-   char currentChar;
-
-   while (file.get(currentChar))
-   {
-      frequencies[currentChar] += 1;
-   }
-   frequencies['\0'] += 1; //Add file end encoding
-   frequencies[ESCAPE] += 1; //Add escape character encoding
-
-   //Create queue
-   struct comparator
-   {
-      bool operator()(huffman_node* lhs, huffman_node* rhs) const
+   private:
+      void write_buffer()
       {
-         return lhs->count > rhs->count;
+         stream->write(reinterpret_cast<char *>(&buffer.value), sizeof(buffer.value));
+         buffer.length = 0;
       }
    };
 
-   std::priority_queue<huffman_node*, std::vector<huffman_node*>, comparator> queue;
 
-   for (auto& kv : frequencies)
+   huffman_node* build_huffman(std::ifstream& file)
    {
-      queue.push(new huffman_node{ kv.first, true, kv.second, nullptr, nullptr });
-   }
+      //Calculate Frequencies
+      std::map<char, int> frequencies;
+      char currentChar;
 
-   //Build huffman tree
-   while (queue.size() > 1)
-   {
-      huffman_node* first = queue.top();
-      queue.pop();
+      while (file.get(currentChar))
+      {
+         frequencies[currentChar] += 1;
+      }
+      frequencies['\0'] += 1; //Add file end encoding
+      frequencies[ESCAPE] += 1; //Add escape character encoding
 
-      huffman_node* second = queue.top();
-      queue.pop();
-
-      huffman_node* branch = new huffman_node{
-         '\0',
-         false,
-         first->count + second->count,
-         (first->count > second->count) ? second : first,
-         (first->count > second->count) ? first : second
+      //Create queue
+      struct comparator
+      {
+         bool operator()(huffman_node* lhs, huffman_node* rhs) const
+         {
+            return lhs->count > rhs->count;
+         }
       };
 
-      queue.push(branch);
-   }
+      std::priority_queue<huffman_node*, std::vector<huffman_node*>, comparator> queue;
 
-   return queue.top();
-}
-
-void encode(std::ifstream& to_encode, std::map<char, bit_encoding> encoding, std::ofstream* stream)
-{
-   bit_encoding_writer writer(stream);
-
-   char c;
-   while (to_encode.get(c))
-   {
-      if (c == '\0' || c == ESCAPE)
+      for (auto& kv : frequencies)
       {
-         writer.write(encoding[ESCAPE]);
+         queue.push(new huffman_node{ kv.first, true, kv.second, nullptr, nullptr });
       }
 
-      writer.write(encoding[c]);
+      //Build huffman tree
+      while (queue.size() > 1)
+      {
+         huffman_node* first = queue.top();
+         queue.pop();
+
+         huffman_node* second = queue.top();
+         queue.pop();
+
+         huffman_node* branch = new huffman_node{
+            '\0',
+            false,
+            first->count + second->count,
+            (first->count > second->count) ? second : first,
+            (first->count > second->count) ? first : second
+         };
+
+         queue.push(branch);
+      }
+
+      return queue.top();
    }
 
-   writer.write(encoding['\0']);
-
-   writer.close();
-
-}
-
-void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::ofstream& stream)
-{
-   bit_encoding read_in = { 0, 0 };
-   bit_encoding matching = { 0, 0 };
-   std::string result;
-
-   input.read(reinterpret_cast<char*>(&read_in.value), sizeof(read_in.value));
-   read_in.length = 64;
-
-   bool currently_escaped = false;
-
-   char c;
-   while (true)
+   void encode(std::ifstream& to_encode, std::map<char, bit_encoding> encoding, std::ofstream* stream)
    {
-      while (decoding.find(matching) == decoding.end())
+      bit_encoding_writer writer(stream);
+
+      char c;
+      while (to_encode.get(c))
       {
-         if (read_in.length == 0)
+         if (c == '\0' || c == ESCAPE)
          {
-            input.read(reinterpret_cast<char*>(&read_in.value), sizeof(read_in.value));
-            read_in.length = 64;
+            writer.write(encoding[ESCAPE]);
          }
 
-         matching.take_from(read_in);
+         writer.write(encoding[c]);
       }
-      c = decoding[matching];
 
-      if ((c == ESCAPE) && (!currently_escaped))
+      writer.write(encoding['\0']);
+
+      writer.close();
+
+   }
+
+   void decode(std::ifstream& input, std::map<bit_encoding, char> decoding, std::ofstream& stream)
+   {
+      bit_encoding read_in = { 0, 0 };
+      bit_encoding matching = { 0, 0 };
+      std::string result;
+
+      input.read(reinterpret_cast<char*>(&read_in.value), sizeof(read_in.value));
+      read_in.length = 64;
+
+      bool currently_escaped = false;
+
+      char c;
+      while (true)
       {
-         currently_escaped = true;
+         while (decoding.find(matching) == decoding.end())
+         {
+            if (read_in.length == 0)
+            {
+               input.read(reinterpret_cast<char*>(&read_in.value), sizeof(read_in.value));
+               read_in.length = 64;
+            }
+
+            matching.take_from(read_in);
+         }
+         c = decoding[matching];
+
+         if ((c == ESCAPE) && (!currently_escaped))
+         {
+            currently_escaped = true;
+         }
+         else
+         {
+            if (c == '\0' && !currently_escaped)
+               break;
+
+            currently_escaped = false;
+
+            stream << c;
+         }
+
+         matching = { 0, 0 };
       }
-      else
-      {
-         if (c == '\0' && !currently_escaped)
-            break;
-
-         currently_escaped = false;
-
-         stream << c;
-      }
-
-      matching = { 0, 0 };
    }
 }
 
-int main(int argc, char* argv[])
-{
-   if (argc != 4)
+namespace lzwz_compression {
+   struct translation_map
    {
-      std::cout << "Incorrect number of parameters!";
-      return 1;
+      std::unordered_map<std::string, char> stringToNum;
+      std::unordered_map<char, std::string> numToString;
+
+      std::string match;
+      char current_index = 1;
+
+      void add_char(char c)
+      {
+         std::cout << c;
+         match.push_back(c);
+
+         if (stringToNum.find(match) == stringToNum.end())
+         {
+            if (current_index != 126 && match.length() > 2)
+            {
+               stringToNum[match] = current_index;
+               numToString[current_index] = match;
+
+               current_index++;
+               match.clear();
+            }
+         }
+      }
+
+      void add_string(const std::string& string)
+      {
+         for (const char& c : string)
+         {
+            add_char(c);
+         }
+      }
+   };
+
+   const char marker = 0;
+   void encode(std::istream& input, std::ostream& output)
+   {
+      char c;
+      std::string match;
+      bool matched = false;
+      uint8_t current_index = 1;
+      translation_map translationMap;
+
+
+      while (input.get(c))
+      {
+         match.push_back(c);
+
+         if (translationMap.stringToNum.find(match) == translationMap.stringToNum.end())
+         {
+            if (match.length() > 2)
+            {
+               if (matched) {
+                  matched = false;
+                  char last_character = match.back();
+                  match.pop_back();
+
+                  output.put(marker);
+                  output.put(translationMap.stringToNum[match]);
+                  translationMap.add_string(match);
+
+                  match = last_character;
+               }
+               else
+               {
+                  for (auto& x : match)
+                  {
+                     if (x == marker)
+                        output.put(x);
+
+                     translationMap.add_char(x);
+                     output.put(x);
+                  }
+
+                  match.clear();
+               }
+            }
+         }
+         else
+         {
+            if (match.length() > 2)
+               matched = true;
+         }
+
+
+      }
+
+      if (translationMap.stringToNum.find(match) != translationMap.stringToNum.end())
+      {
+         output << marker;
+         output << translationMap.stringToNum[match];
+      }
+      else {
+         output << match;
+      }
+
+      //std::cout << "done";
    }
-   if (std::string(argv[1]) == "e")
+
+
+   void decode(std::istream& input, std::ostream& output)
+   {
+      std::cout << std::endl;
+      char c;
+      uint8_t current_index = 1;
+      translation_map translationMap;
+      int last_appended_length = 0;
+
+      while (input.get(c))
+      {
+         if (c == marker)
+         {
+            input.get(c);
+
+            if (c != marker)
+            {
+               output << translationMap.numToString[c];
+               translationMap.add_string(translationMap.numToString[c]);
+               continue;
+            }
+         }
+
+
+         translationMap.add_char(c);
+         output << c;
+      }
+   }
+}
+
+void test_lzwz_compress_and_decompress(std::string text)
+{
+   std::istringstream input(text);
+   std::string compressed;
+
+   {
+      std::ostringstream compressed_output;
+      lzwz_compression::encode(input, compressed_output);
+      compressed = compressed_output.str();
+   }
+
+   {
+      std::istringstream compressed_input(compressed);
+      std::ostringstream decompressed;
+      lzwz_compression::decode(compressed_input, decompressed);
+      std::string result = decompressed.str();
+
+      assert(result == text);
+   }
+}
+
+void test()
+{
+   test_lzwz_compress_and_decompress("sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss");
+   test_lzwz_compress_and_decompress("jaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+   test_lzwz_compress_and_decompress("jklasdfljksdafjklsda klfsdaklfjdsakljfssafsda jklfsdaklj fkljasdfsad;lkjasd;lfkj");
+   test_lzwz_compress_and_decompress("jklasdfljksdafjklsda kfsadfdsflfasdfasfsdaklfjdsakljfsda jklfsdaklj fkljasdfsad;lkjasd;lfkj");
+   test_lzwz_compress_and_decompress("jklasdfljksdafjklsdaasdf klfsdaklfjdsakljfsda jklfsdaklj fkljasdfsad;lkjasd;lfkj");
+}
+
+void encode_file(std::string input_filename, std::string output_filename)
+{
+   //LZWZ
+   {
+      std::ifstream file(input_filename, std::ios_base::binary);
+      std::ofstream output(output_filename + ".tmp", std::ios_base::binary);
+
+      lzwz_compression::encode(file, output);
+      file.close();
+
+      output.flush();
+      output.close();
+   }
+   
+   //Huffman Compression
    {
       //Build huffman tree
-      std::ifstream file(argv[2], std::ios_base::binary);
-      huffman_node* tree = build_huffman(file);
+      std::ifstream file(output_filename + ".tmp", std::ios_base::binary);
+      huffman_compression::huffman_node* tree = huffman_compression::build_huffman(file);
       file.close();
 
       //Write huffman tree out to file
-      std::ofstream output(argv[3], std::ios_base::binary);
+      std::ofstream output(output_filename, std::ios_base::binary);
       write_huffman(output, tree);
 
       //Create encodings
-      std::map<char, bit_encoding> encoding;
-      tree->build_encoding(encoding, bit_encoding());
+      std::map<char, huffman_compression::bit_encoding> encoding;
+      tree->build_encoding(encoding, huffman_compression::bit_encoding());
 
       //read through file again and encode it
-      std::ifstream file2(argv[2], std::ios_base::binary);
-      encode(file2, encoding, &output);
+      std::ifstream file2(output_filename + ".tmp", std::ios_base::binary);
+      huffman_compression::encode(file2, encoding, &output);
       file2.close();
 
       output.flush();
       output.close();
    }
-   else if (std::string(argv[1]) == "d")
+}
+
+void decode_file(std::string input_filename, std::string output_filename)
+{
    {
       //Read in tree
-      std::ifstream input(argv[2], std::ios_base::binary);
-      huffman_node* tree_copy = read_huffman(input);
-      //tree_copy->print("");
+      std::ifstream input(input_filename, std::ios_base::binary);
+      huffman_compression::huffman_node* tree_copy = huffman_compression::read_huffman(input);
 
       //Build decoding
+      std::map<huffman_compression::bit_encoding, char> decoding;
+      tree_copy->build_decoding(decoding, huffman_compression::bit_encoding());
 
-      std::map<bit_encoding, char> decoding;
-      tree_copy->build_decoding(decoding, bit_encoding());
-
-
-      std::ofstream stream(argv[3], std::ios_base::binary);
-      decode(input, decoding, stream);
+      std::ofstream stream(output_filename + ".tmp", std::ios_base::binary);
+      huffman_compression::decode(input, decoding, stream);
    }
-
-   return 0;
-}
-*/
-
-struct translation_map
-{
-   std::unordered_map<std::string, char> stringToNum;
-   std::unordered_map<char, std::string> numToString;
-
-   std::string match;
-   char current_index = 1;
-
-   void add_char(char c)
    {
-      match.push_back(c);
+      std::ifstream input(output_filename + ".tmp", std::ios_base::binary);
+      std::ofstream output(output_filename, std::ios_base::binary);
 
-      if(stringToNum.find(match) == stringToNum.end())
-      {
-         if (current_index != 256 && match.length() > 2)
-         {
-            stringToNum[match] = current_index;
-            numToString[current_index] = match;
-            
-            current_index++;
-            match.clear();
-         }
-      }
+      lzwz_compression::decode(input, output);
+      input.close();
+      output.flush();
+      output.close();
    }
-
-   void add_string(const std::string& string)
-   {
-      for(const char& c : string)
-      {
-         add_char(c);
-      }
-   }
-};
-
-const char marker = 0;
-void encode(std::istream& input, std::ostream& output)
-{
-   char c;
-   std::string match;
-   bool matched = false;
-   uint8_t current_index = 1;
-   translation_map translationMap;
-
-
-   while (input.get(c))
-   {
-      match.push_back(c);
-
-      if (translationMap.stringToNum.find(match) == translationMap.stringToNum.end())
-      {
-         if (match.length() > 2)
-         {
-            if (matched) {
-               matched = false;
-               char last_character = match.back();
-               match.pop_back();
-
-               output.put(marker);
-               output.put(translationMap.stringToNum[match]);
-
-               match = last_character;
-            }
-            else
-            {
-               for (auto& x : match)
-               {
-                  if (x == marker)
-                     output.put(x);
-
-                  output.put(x);
-               }
-
-               match.clear();
-            }
-         }
-      }
-      else
-      {
-         if(match.length() > 2)
-            matched = true;
-      }
-
-
-      translationMap.add_char(c);
-   }
-
-   if(translationMap.stringToNum.find(match) != translationMap.stringToNum.end())
-   {
-      output << marker;
-      output << translationMap.stringToNum[match];
-   }
-   else {
-      output << match;
-   }
-
-   std::cout << "done";
-}
-
-
-void decode(std::istream& input, std::ostream& output)
-{
-   char c;
-   std::string match;
-   bool matched = false;
-   uint8_t current_index = 1;
-   translation_map translationMap;
-   int last_appended_length = 0;
-
-   while (input.get(c))
-   {
-      if (c == marker)
-      {
-         input.get(c);
-
-         if (c != marker)
-         {
-            output << translationMap.numToString[c];
-            translationMap.add_string(translationMap.numToString[c]);
-         }
-         else
-         {
-            output << c;
-            match.push_back(c);
-            translationMap.add_char(c);
-         }
-      }
-      else
-      {
-         translationMap.add_char(c);
-         match.push_back(c);
-      }
-   }
-
-   output << match;
-}
-
-void test()
-{
-   {
-      std::string text = "abbabb ";
-
-      std::istringstream input(text);
-      std::string compressed;
-
-
-      {
-         std::ostringstream compressed_output;
-         encode(input, compressed_output);
-         compressed = compressed_output.str();
-      }
-
-      {
-         std::istringstream compressed_input(compressed);
-         std::ostringstream decompressed;
-         decode(compressed_input, decompressed);
-         std::string result = decompressed.str();
-
-         assert(result == text);
-      }
-   }
-
-   
-   {
-      std::string text = "baaaaaaaa";
-
-      std::istringstream input(text);
-      std::string compressed;
-
-
-      {
-         std::ostringstream compressed_output;
-         encode(input, compressed_output);
-         compressed = compressed_output.str();
-      }
-
-      {
-          std::istringstream compressed_input(compressed);
-          std::ostringstream decompressed;
-          decode(compressed_input, decompressed);
-          std::string result = decompressed.str();
-
-          assert(result == text);
-       }
-   }
-   /*
-   {
-      std::string text = "baaraaaaaaaaaaa";
-
-      std::istringstream input(text);
-      std::string compressed;
-
-
-      {
-         std::ostringstream compressed_output;
-         encode(input, compressed_output);
-         compressed = compressed_output.str();
-      }
-
-      {
-         std::istringstream compressed_input(compressed);
-         std::ostringstream decompressed;
-         decode(compressed_input, decompressed);
-         std::string result = decompressed.str();
-
-         assert(result == text);
-      }
-   }*/
-   /*
-   {
-      std::string text = "kkkkkkkkaaaaakkkkkkkkk";
-      std::istringstream input(text);
-      std::string compressed;
-
-      {
-         std::ostringstream compressed_output;
-         encode(input, compressed_output);
-         compressed = compressed_output.str();
-      }
-
-      {
-         std::istringstream compressed_input(compressed);
-         std::ostringstream decompressed;
-         decode(compressed_input, decompressed);
-         std::string result = decompressed.str();
-
-         assert(result == text);
-      }
-   }
-
-   {
-      std::string text = "JDKKKKKKKKKJJJJJJJJJJJJJKKKKKKKKKKKKKKk";
-
-      std::istringstream input(text);
-      std::string compressed;
-
-
-      {
-         std::ostringstream compressed_output;
-         encode(input, compressed_output);
-         compressed = compressed_output.str();
-      }
-
-      {
-          std::istringstream compressed_input(compressed);
-          std::ostringstream decompressed;
-          decode(compressed_input, decompressed);
-          std::string result = decompressed.str();
-
-          assert(result == text);
-       }
-   }*/
 }
 
 int main(int argc, char* argv[])
-{/*
+{
    if (argc != 4)
    {
       std::cout << "Incorrect number of parameters!";
@@ -660,33 +582,12 @@ int main(int argc, char* argv[])
    }
    if (std::string(argv[1]) == "e")
    {
-      std::ofstream output(argv[3], std::ios_base::binary);
-      std::ifstream file(argv[2], std::ios_base::binary);
-
-      encode(file, output);
-      file.close();
-
-      output.flush();
-      output.close();
-   }*/ /*
-   {
-      std::ifstream input("input.txt", std::ios_base::binary);
-      std::ofstream output("output.txt", std::ios_base::binary);
-
-      encode(input, output);
-      input.close();
-      output.flush();
-      output.close();
+      encode_file(argv[2], argv[3]);
    }
+   else if (std::string(argv[1]) == "d")
    {
-      std::ifstream input("output.txt", std::ios_base::binary);
-      std::ofstream output("done.txt", std::ios_base::binary);
+      decode_file(argv[2], argv[3]);
+   }
 
-      decode(input, output);
-      input.close();
-      output.flush();
-      output.close();
-   }*/
-
-   test();
+   return 0;
 }
